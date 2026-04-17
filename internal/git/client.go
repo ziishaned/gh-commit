@@ -3,6 +3,7 @@ package git
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -104,4 +105,59 @@ func (c *Client) Commit(message string, dryRun bool) (*types.CommitResult, error
 	result.Success = true
 	result.Hash = strings.TrimSpace(string(hashOutput))
 	return result, nil
+}
+
+// FallbackToInteractive opens an editor for manual commit message editing
+func (c *Client) FallbackToInteractive(message string) error {
+	// Create temp file with message
+	tmpFile, err := os.CreateTemp("", "commit-message-*.txt")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	// Write pre-filled message
+	if _, err := tmpFile.WriteString(message); err != nil {
+		return fmt.Errorf("failed to write to temp file: %w", err)
+	}
+	tmpFile.Close()
+
+	// Get editor from environment
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "vim" // Fallback to vim
+	}
+
+	// Open editor
+	editCmd := exec.Command(editor, tmpFile.Name())
+	editCmd.Stdin = os.Stdin
+	editCmd.Stdout = os.Stdout
+	editCmd.Stderr = os.Stderr
+
+	if err := editCmd.Run(); err != nil {
+		return fmt.Errorf("editor failed: %w", err)
+	}
+
+	// Read edited message
+	editedContent, err := os.ReadFile(tmpFile.Name())
+	if err != nil {
+		return fmt.Errorf("failed to read edited message: %w", err)
+	}
+
+	editedMessage := string(editedContent)
+	if strings.TrimSpace(editedMessage) == "" {
+		return fmt.Errorf("empty commit message, aborting")
+	}
+
+	// Commit with edited message
+	cmd := exec.Command("git", "commit", "-m", editedMessage)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git commit failed: %w", err)
+	}
+
+	return nil
 }

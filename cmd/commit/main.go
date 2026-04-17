@@ -80,11 +80,29 @@ func runCommit(cmd *cobra.Command, args []string) error {
 
 	resp, err := llmClient.GenerateCommitMessage(req)
 	if err != nil {
-		return fmt.Errorf("failed to generate commit message: %w", err)
+		fmt.Printf("⚠️  Failed to generate commit message: %v\n", err)
+		fmt.Println("Falling back to interactive mode...")
+
+		fallbackMessage := "AI generation failed. Please write commit message manually."
+		if err := gitClient.FallbackToInteractive(fallbackMessage); err != nil {
+			return fmt.Errorf("interactive commit failed: %w", err)
+		}
+
+		fmt.Println("✅ Committed successfully via interactive mode")
+		return nil
 	}
 
 	if resp.Error != nil {
-		return fmt.Errorf("failed to generate commit message: %w", resp.Error)
+		fmt.Printf("⚠️  Failed to generate commit message: %v\n", resp.Error)
+		fmt.Println("Falling back to interactive mode...")
+
+		fallbackMessage := "AI generation failed. Please write commit message manually."
+		if err := gitClient.FallbackToInteractive(fallbackMessage); err != nil {
+			return fmt.Errorf("interactive commit failed: %w", err)
+		}
+
+		fmt.Println("✅ Committed successfully via interactive mode")
+		return nil
 	}
 
 	message := resp.Message
@@ -99,11 +117,32 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	fmt.Println("Committing...")
 	result, err := gitClient.Commit(message, flagDryRun)
 	if err != nil {
-		return fmt.Errorf("failed to commit: %w", err)
+		fmt.Printf("⚠️  Commit failed: %v\n", err)
+		fmt.Println("Falling back to interactive mode...")
+
+		fallbackMessage := "AI generation failed. Please write commit message manually."
+		if message != "" {
+			fallbackMessage = message
+		}
+
+		if err := gitClient.FallbackToInteractive(fallbackMessage); err != nil {
+			return fmt.Errorf("interactive commit failed: %w", err)
+		}
+
+		fmt.Println("✅ Committed successfully via interactive mode")
+		return nil
 	}
 
 	if !result.Success {
-		return fmt.Errorf("commit failed: %w", result.Error)
+		fmt.Printf("⚠️  Commit failed: %v\n", result.Error)
+		fmt.Println("Falling back to interactive mode...")
+
+		if err := gitClient.FallbackToInteractive(message); err != nil {
+			return fmt.Errorf("interactive commit failed: %w", err)
+		}
+
+		fmt.Println("✅ Committed successfully via interactive mode")
+		return nil
 	}
 
 	fmt.Printf("✅ Committed successfully: %s\n", result.Message)
