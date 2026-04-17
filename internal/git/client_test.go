@@ -280,3 +280,54 @@ func TestGetStagedDiff(t *testing.T) {
 		t.Error("Diff should not be empty when there are staged changes")
 	}
 }
+
+func TestCommit(t *testing.T) {
+	tempDir := setupTestRepo(t)
+	defer os.RemoveAll(tempDir)
+
+	// Change to test directory
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+	defer os.Chdir(originalDir)
+
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Failed to change to test directory: %v", err)
+	}
+
+	client := &Client{}
+
+	// Create and stage a test file
+	testFile := filepath.Join(tempDir, "commit-test.txt")
+	if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	cmd := exec.Command("git", "add", "commit-test.txt")
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Failed to stage test file: %v", err)
+	}
+
+	// Commit with a test message
+	testMessage := "test: automated commit message"
+	result, err := client.Commit(testMessage, false)
+	if err != nil {
+		t.Fatalf("Commit failed: %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Expected success, got failure: %v", result.Error)
+	}
+
+	if result.Message != testMessage {
+		t.Errorf("Message mismatch: expected %s, got %s", testMessage, result.Message)
+	}
+
+	if result.Hash == "" {
+		t.Error("Commit hash should not be empty on success")
+	}
+
+	// Clean up
+	exec.Command("git", "reset", "--hard", "HEAD~1").Run()
+}

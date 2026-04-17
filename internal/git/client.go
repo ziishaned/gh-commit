@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/gh-commit/internal/types"
 )
 
 type Client struct{}
@@ -63,4 +65,43 @@ func (c *Client) GetStagedDiff() (string, error) {
 	}
 
 	return diff, nil
+}
+
+// Commit creates a commit with the given message
+func (c *Client) Commit(message string, dryRun bool) (*types.CommitResult, error) {
+	result := &types.CommitResult{
+		Message: message,
+		DryRun:  dryRun,
+	}
+
+	if dryRun {
+		result.Success = true
+		return result, nil
+	}
+
+	// Create commit with message
+	cmd := exec.Command("git", "commit", "-m", message)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		result.Success = false
+		result.Error = fmt.Errorf("git commit failed: %w: %s", err, stderr.String())
+		return result, result.Error
+	}
+
+	// Get commit hash
+	cmd2 := exec.Command("git", "rev-parse", "HEAD")
+	hashOutput, err := cmd2.Output()
+	if err != nil {
+		result.Success = false
+		result.Error = fmt.Errorf("failed to get commit hash: %w", err)
+		return result, result.Error
+	}
+
+	result.Success = true
+	result.Hash = strings.TrimSpace(string(hashOutput))
+	return result, nil
 }
