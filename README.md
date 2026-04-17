@@ -5,7 +5,7 @@ A GitHub CLI extension that automatically generates Conventional Commits message
 ## Installation
 
 ```bash
-gh extension install <your-username>/gh-commit
+gh extension install ziishaned/gh-commit
 gh commit
 ```
 
