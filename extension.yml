@@ -1,0 +1,4 @@
+name: commit
+owner: gh-commit
+host: github.com
+tag: v1.0.0
