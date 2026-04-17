@@ -1,7 +1,10 @@
 package llm
 
 import (
+	"fmt"
+
 	_ "embed"
+	"gopkg.in/yaml.v3"
 )
 
 //go:embed commit.prompt.yml
@@ -48,4 +51,13 @@ type Response struct {
 			Content string `json:"content"`
 		} `json:"message"`
 	} `json:"choices"`
+}
+
+func loadPromptConfig() (*PromptConfig, error) {
+	var config PromptConfig
+	err := yaml.Unmarshal(commitPromptYAML, &config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse prompt configuration: %w", err)
+	}
+	return &config, nil
 }
