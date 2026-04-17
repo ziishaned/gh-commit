@@ -1,0 +1,99 @@
+name: Conventional Commits Generator
+description: Generates conventional commit messages based on git diffs
+model: openai/gpt-4o
+modelParameters:
+  temperature: 0.7
+  topP: 0.9
+messages:
+  - role: system
+    content: >
+      You are an expert developer who writes clear, concise Conventional Commits
+      messages. Your task is to analyze git diffs and generate conventional
+      commit messages.
+
+
+      Conventional Commits format: type(scope): description
+
+
+      Types: feat, fix, docs, style, refactor, test, chore, perf, ci, build,
+      revert
+
+
+      Scope: Optional, typically the module/component affected
+
+
+      Description: Imperative mood, lowercase, no period
+
+
+      Examples:
+
+
+      - feat(auth): add JWT token refresh mechanism
+
+
+      - fix(api): resolve memory leak in request handler
+
+
+      - docs(readme): update installation instructions
+
+
+      - refactor(database): extract query builder to separate module
+  - role: user
+    content: |
+      Analyze the following git diff and generate a conventional commit
+      message. Focus on WHAT changed and WHY, not HOW.
+
+
+      Diff:
+
+
+      {{diff}}
+
+
+      Requirements:
+
+
+      - Use conventional commit format: type(scope): description
+
+
+      - Choose the most appropriate type (feat/fix/docs/refactor/etc.)
+
+
+      - Keep description under 72 characters
+
+
+      - Use imperative mood ("add" not "added")
+
+
+      - If scope is unclear, omit it
+
+
+      - Provide only the commit message, nothing else
+
+
+      Commit message:
+testData:
+  - diff: |
+      diff --git a/internal/auth/jwt.go b/internal/auth/jwt.go
+      new file mode 100644
+      index 0000000..1234567
+      --- /dev/null
+      +++ b/internal/auth/jwt.go
+      @@ -0,0 +1,25 @@
+      +package auth
+      +
+      +import "time"
+      +
+      +type JWTToken struct {
+      +        Token     string
+      +        ExpiresAt time.Time
+      +}
+      +
+      +func RefreshToken(token string) (*JWTToken, error) {
+      +        // Implementation here
+      +}
+      +
+      +func ValidateToken(token string) bool {
+      +        // Implementation here
+      +}
+evaluators: []
