@@ -32,7 +32,12 @@ func (c *Client) HasAnyChanges() bool {
 
 	// Check for untracked files
 	cmd3 := exec.Command("git", "ls-files", "--others", "--exclude-standard")
-	output, _ := cmd3.Output()
+	output, err := cmd3.Output()
+	if err != nil {
+		// If git command fails, log the error but don't fail the entire check
+		// We'll conservatively assume there might be changes
+		return true
+	}
 	untracked := len(strings.TrimSpace(string(output))) > 0
 
 	return unstaged || staged || untracked
