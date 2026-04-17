@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"os"
 	"testing"
 )
 
@@ -32,5 +33,24 @@ func TestLoadPromptConfig(t *testing.T) {
 
 	if config.ModelParameters.Temperature != 0.7 {
 		t.Errorf("Expected temperature 0.7, got %f", config.ModelParameters.Temperature)
+	}
+}
+
+func TestNewClient(t *testing.T) {
+	// Set a fake token for testing
+	os.Setenv("GH_TOKEN", "test-token")
+	defer os.Unsetenv("GH_TOKEN")
+
+	client, err := NewClient()
+	if err != nil {
+		t.Fatalf("NewClient failed: %v", err)
+	}
+
+	if client == nil {
+		t.Fatal("Client should not be nil")
+	}
+
+	if client.token != "test-token" {
+		t.Errorf("Expected token 'test-token', got '%s'", client.token)
 	}
 }

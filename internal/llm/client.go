@@ -3,6 +3,8 @@ package llm
 import (
 	"fmt"
 
+	"github.com/cli/go-gh/v2/pkg/auth"
+
 	_ "embed"
 	"gopkg.in/yaml.v3"
 )
@@ -60,4 +62,15 @@ func loadPromptConfig() (*PromptConfig, error) {
 		return nil, fmt.Errorf("failed to parse prompt configuration: %w", err)
 	}
 	return &config, nil
+}
+
+func NewClient() (*Client, error) {
+	host, _ := auth.DefaultHost()
+	token, _ := auth.TokenForHost(host)
+
+	if token == "" {
+		return nil, fmt.Errorf("no GitHub token found. Please run 'gh auth login' to authenticate")
+	}
+
+	return &Client{token: token}, nil
 }
