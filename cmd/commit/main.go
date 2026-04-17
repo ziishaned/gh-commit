@@ -5,6 +5,8 @@ import (
 	"os"
 
 	"github.com/gh-commit/internal/git"
+	"github.com/gh-commit/internal/llm"
+	"github.com/gh-commit/internal/types"
 	"github.com/spf13/cobra"
 )
 
@@ -62,7 +64,31 @@ func runCommit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get diff: %w", err)
 	}
 
-	fmt.Printf("📝 Analyzing %d lines of changes...\n", len(diff))
+	fmt.Printf("📝 Analyzing changes...\n")
+
+	// Generate commit message using LLM
+	fmt.Printf("Generating commit message using %s...\n", flagModel)
+	llmClient, err := llm.NewClient()
+	if err != nil {
+		return fmt.Errorf("failed to create LLM client: %w", err)
+	}
+
+	req := types.LLMRequest{
+		Diff:  diff,
+		Model: flagModel,
+	}
+
+	resp, err := llmClient.GenerateCommitMessage(req)
+	if err != nil {
+		return fmt.Errorf("failed to generate commit message: %w", err)
+	}
+
+	if resp.Error != nil {
+		return fmt.Errorf("failed to generate commit message: %w", resp.Error)
+	}
+
+	message := resp.Message
+	fmt.Printf("✨ Generated: %s\n", message)
 
 	return nil
 }
