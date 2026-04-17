@@ -55,5 +55,14 @@ func runCommit(cmd *cobra.Command, args []string) error {
 		fmt.Println("✅ Found staged changes")
 	}
 
+	// Get the staged diff
+	fmt.Println("Analyzing staged changes...")
+	diff, err := gitClient.GetStagedDiff()
+	if err != nil {
+		return fmt.Errorf("failed to get diff: %w", err)
+	}
+
+	fmt.Printf("📝 Analyzing %d lines of changes...\n", len(diff))
+
 	return nil
 }
