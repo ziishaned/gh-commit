@@ -108,7 +108,13 @@ func (c *Client) Commit(message string, dryRun bool) (*types.CommitResult, error
 }
 
 // FallbackToInteractive opens an editor for manual commit message editing
-func (c *Client) FallbackToInteractive(message string) error {
+func (c *Client) FallbackToInteractive(message string, dryRun bool) error {
+	// Validate and check editor availability
+	editor, err := c.validateEditor()
+	if err != nil {
+		return fmt.Errorf("editor validation failed: %w", err)
+	}
+
 	// Create temp file with message
 	tmpFile, err := os.CreateTemp("", "commit-message-*.txt")
 	if err != nil {
@@ -121,12 +127,6 @@ func (c *Client) FallbackToInteractive(message string) error {
 		return fmt.Errorf("failed to write to temp file: %w", err)
 	}
 	tmpFile.Close()
-
-	// Get editor from environment
-	editor := os.Getenv("EDITOR")
-	if editor == "" {
-		editor = "vim" // Fallback to vim
-	}
 
 	// Open editor
 	editCmd := exec.Command(editor, tmpFile.Name())
@@ -149,6 +149,12 @@ func (c *Client) FallbackToInteractive(message string) error {
 		return fmt.Errorf("empty commit message, aborting")
 	}
 
+	// If dry run, just show what would be committed
+	if dryRun {
+		fmt.Printf("\n[Dry run] Would commit with message:\n%s\n", editedMessage)
+		return nil
+	}
+
 	// Commit with edited message
 	cmd := exec.Command("git", "commit", "-m", editedMessage)
 	cmd.Stdin = os.Stdin
@@ -160,4 +166,34 @@ func (c *Client) FallbackToInteractive(message string) error {
 	}
 
 	return nil
+}
+
+// validateEditor checks if EDITOR is set and the editor exists
+func (c *Client) validateEditor() (string, error) {
+	editor := os.Getenv("EDITOR")
+
+	// If EDITOR is not set, try common editors
+	if editor == "" {
+		commonEditors := []string{"vim", "nano", "vi"}
+		for _, e := range commonEditors {
+			if _, err := exec.LookPath(e); err == nil {
+				editor = e
+				break
+			}
+		}
+
+		// If no common editor found, return error
+		if editor == "" {
+			return "", fmt.Errorf("no editor found. Please set EDITOR environment variable or ensure vim/nano/vi is available")
+		}
+
+		fmt.Printf("EDITOR not set, using '%s'\n", editor)
+	}
+
+	// Check if the editor exists
+	if _, err := exec.LookPath(editor); err != nil {
+		return "", fmt.Errorf("editor '%s' not found: %w. Please set EDITOR to a valid editor", editor, err)
+	}
+
+	return editor, nil
 }

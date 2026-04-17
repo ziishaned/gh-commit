@@ -331,3 +331,175 @@ func TestCommit(t *testing.T) {
 	// Clean up
 	exec.Command("git", "reset", "--hard", "HEAD~1").Run()
 }
+
+func TestFallbackToInteractiveDryRun(t *testing.T) {
+	tempDir := setupTestRepo(t)
+	defer os.RemoveAll(tempDir)
+
+	// Change to test directory
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+	defer os.Chdir(originalDir)
+
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Failed to change to test directory: %v", err)
+	}
+
+	client := &Client{}
+
+	// Create and stage a test file
+	testFile := filepath.Join(tempDir, "interactive-test.txt")
+	if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	cmd := exec.Command("git", "add", "interactive-test.txt")
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Failed to stage test file: %v", err)
+	}
+
+	// Create a simple script that acts as a non-interactive editor
+	scriptPath := filepath.Join(tempDir, "fake-editor.sh")
+	scriptContent := "#!/bin/sh\nexit 0\n"
+	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0755); err != nil {
+		t.Fatalf("Failed to create fake editor script: %v", err)
+	}
+
+	// Set EDITOR to our fake editor
+	oldEditor := os.Getenv("EDITOR")
+	os.Setenv("EDITOR", scriptPath)
+	defer os.Setenv("EDITOR", oldEditor)
+
+	// Test dry run mode - should not create actual commit
+	testMessage := "test: dry run message"
+	err = client.FallbackToInteractive(testMessage, true)
+	if err != nil {
+		t.Fatalf("FallbackToInteractive dry run failed: %v", err)
+	}
+
+	// Verify no commit was created
+	cmd2 := exec.Command("git", "log", "--oneline")
+	output, err := cmd2.Output()
+	if err != nil {
+		t.Fatalf("Failed to get git log: %v", err)
+	}
+
+	logLines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(logLines) != 1 {
+		t.Errorf("Expected 1 commit (initial only), got %d: %s", len(logLines), string(output))
+	}
+}
+
+func TestValidateEditor(t *testing.T) {
+	client := &Client{}
+
+	// Test with EDITOR set to a common editor
+	commonEditors := []string{"vi", "vim", "nano"}
+	foundEditor := false
+	for _, editor := range commonEditors {
+		if _, err := exec.LookPath(editor); err == nil {
+			foundEditor = true
+			// Set EDITOR environment variable
+			oldEditor := os.Getenv("EDITOR")
+			os.Setenv("EDITOR", editor)
+			defer os.Setenv("EDITOR", oldEditor)
+
+			validatedEditor, err := client.validateEditor()
+			if err != nil {
+				t.Errorf("validateEditor failed for %s: %v", editor, err)
+			}
+			if validatedEditor != editor {
+				t.Errorf("Expected editor %s, got %s", editor, validatedEditor)
+			}
+			break
+		}
+	}
+
+	if !foundEditor {
+		t.Skip("No common editor found for testing")
+	}
+
+	// Test with EDITOR set to non-existent editor
+	os.Setenv("EDITOR", "nonexistent-editor-xyz")
+	_, err := client.validateEditor()
+	if err == nil {
+		t.Error("Expected error for non-existent editor, got nil")
+	}
+
+	// Test with EDITOR unset and no common editors available
+	// This is hard to test reliably as most systems have at least one editor
+	// So we'll just verify the function doesn't crash
+	os.Unsetenv("EDITOR")
+	editor, err := client.validateEditor()
+	// On most systems, this will find a common editor and succeed
+	// On systems without any common editor, it should return an error
+	if err != nil && editor == "" {
+		// This is acceptable - no editor found
+		t.Logf("No editor found (acceptable on minimal systems): %v", err)
+	} else if err == nil && editor != "" {
+		// This is also acceptable - found a common editor
+		t.Logf("Found common editor: %s", editor)
+	}
+}
+
+func TestCommitDryRun(t *testing.T) {
+	tempDir := setupTestRepo(t)
+	defer os.RemoveAll(tempDir)
+
+	// Change to test directory
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+	defer os.Chdir(originalDir)
+
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Failed to change to test directory: %v", err)
+	}
+
+	client := &Client{}
+
+	// Create and stage a test file
+	testFile := filepath.Join(tempDir, "dryrun-test.txt")
+	if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	cmd := exec.Command("git", "add", "dryrun-test.txt")
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Failed to stage test file: %v", err)
+	}
+
+	// Test dry run
+	testMessage := "test: dry run message"
+	result, err := client.Commit(testMessage, true)
+	if err != nil {
+		t.Fatalf("Commit dry run failed: %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Expected success in dry run mode, got failure: %v", result.Error)
+	}
+
+	if result.Message != testMessage {
+		t.Errorf("Message mismatch: expected %s, got %s", testMessage, result.Message)
+	}
+
+	if result.Hash != "" {
+		t.Error("Commit hash should be empty in dry run mode")
+	}
+
+	// Verify no commit was actually created
+	cmd2 := exec.Command("git", "log", "--oneline")
+	output, err := cmd2.Output()
+	if err != nil {
+		t.Fatalf("Failed to get git log: %v", err)
+	}
+
+	logLines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(logLines) != 1 {
+		t.Errorf("Expected 1 commit (initial only) after dry run, got %d", len(logLines))
+	}
+}
