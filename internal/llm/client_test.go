@@ -3,6 +3,8 @@ package llm
 import (
 	"os"
 	"testing"
+
+	"github.com/gh-commit/internal/types"
 )
 
 func TestLoadPromptConfig(t *testing.T) {
@@ -53,4 +55,47 @@ func TestNewClient(t *testing.T) {
 	if client.token != "test-token" {
 		t.Errorf("Expected token 'test-token', got '%s'", client.token)
 	}
+}
+
+func TestGenerateCommitMessage(t *testing.T) {
+	// Skip if no token available
+	client, err := NewClient()
+	if err != nil {
+		t.Skip("No GitHub token available")
+	}
+
+	// Test with a simple diff
+	testDiff := `diff --git a/test.txt b/test.txt
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/test.txt
+@@ -0,0 +1 @@
++Hello, World!`
+
+	req := types.LLMRequest{
+		Diff:  testDiff,
+		Model: "openai/gpt-4o",
+	}
+
+	resp, err := client.GenerateCommitMessage(req)
+	if err != nil {
+		t.Fatalf("GenerateCommitMessage failed: %v", err)
+	}
+
+	if resp.Error != nil {
+		t.Fatalf("GenerateCommitMessage returned error: %v", resp.Error)
+	}
+
+	if resp.Message == "" {
+		t.Error("Message should not be empty")
+	}
+
+	// Verify conventional commit format (basic check)
+	// Should contain a colon and not be too long
+	if len(resp.Message) > 100 {
+		t.Errorf("Message seems too long: %s", resp.Message)
+	}
+
+	t.Logf("Generated message: %s", resp.Message)
 }
