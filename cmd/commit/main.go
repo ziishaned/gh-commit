@@ -90,5 +90,24 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	message := resp.Message
 	fmt.Printf("✨ Generated: %s\n", message)
 
+	// Commit the changes
+	if flagDryRun {
+		fmt.Println("\n[Dry run] Commit would be created with message above")
+		return nil
+	}
+
+	fmt.Println("Committing...")
+	result, err := gitClient.Commit(message, flagDryRun)
+	if err != nil {
+		return fmt.Errorf("failed to commit: %w", err)
+	}
+
+	if !result.Success {
+		return fmt.Errorf("commit failed: %w", result.Error)
+	}
+
+	fmt.Printf("✅ Committed successfully: %s\n", result.Message)
+	fmt.Printf("   Commit hash: %s\n", result.Hash)
+
 	return nil
 }
