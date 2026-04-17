@@ -1,6 +1,8 @@
 package git
 
 import (
+	"bytes"
+	"fmt"
 	"os/exec"
 	"strings"
 )
@@ -41,4 +43,24 @@ func (c *Client) HasAnyChanges() bool {
 	untracked := len(strings.TrimSpace(string(output))) > 0
 
 	return unstaged || staged || untracked
+}
+
+// GetStagedDiff returns the full diff of staged changes
+func (c *Client) GetStagedDiff() (string, error) {
+	cmd := exec.Command("git", "diff", "--cached")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("git diff failed: %w: %s", err, stderr.String())
+	}
+
+	diff := stdout.String()
+	if strings.TrimSpace(diff) == "" {
+		return "", fmt.Errorf("no staged changes found")
+	}
+
+	return diff, nil
 }

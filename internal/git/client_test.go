@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -230,5 +231,52 @@ func TestHasAnyChanges(t *testing.T) {
 	// Only the .gitignore file itself should count
 	if !client.HasAnyChanges() {
 		t.Error("Expected changes with untracked .gitignore file, got false")
+	}
+}
+
+func TestGetStagedDiff(t *testing.T) {
+	tempDir := setupTestRepo(t)
+	defer os.RemoveAll(tempDir)
+
+	// Change to test directory
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+	defer os.Chdir(originalDir)
+
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Failed to change to test directory: %v", err)
+	}
+
+	client := &Client{}
+
+	// Create a test file with content
+	testContent := "Hello, World!"
+	testFile := filepath.Join(tempDir, "diff-test.txt")
+	if err := os.WriteFile(testFile, []byte(testContent), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	// Stage the file
+	cmd := exec.Command("git", "add", "diff-test.txt")
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Failed to stage test file: %v", err)
+	}
+
+	// Get diff
+	diff, err := client.GetStagedDiff()
+	if err != nil {
+		t.Fatalf("GetStagedDiff failed: %v", err)
+	}
+
+	// Verify diff contains our content
+	if !strings.Contains(diff, "Hello, World!") {
+		t.Errorf("Diff should contain test content, got: %s", diff)
+	}
+
+	// Verify diff is not empty
+	if strings.TrimSpace(diff) == "" {
+		t.Error("Diff should not be empty when there are staged changes")
 	}
 }
